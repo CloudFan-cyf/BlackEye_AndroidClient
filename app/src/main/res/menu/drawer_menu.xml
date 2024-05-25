@@ -1,0 +1,14 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_camera_sleep"
+        android:icon="@drawable/ic_sleep"
+        android:title="摄像头休眠" />
+    <item
+        android:id="@+id/nav_account"
+        android:icon="@drawable/ic_account"
+        android:title="账户管理" />
+    <item
+        android:id="@+id/nav_quit"
+        android:icon="@drawable/ic_quit"
+        android:title="退出应用" />
+</menu>

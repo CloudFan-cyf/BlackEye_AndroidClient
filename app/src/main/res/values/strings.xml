@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">BlackEye</string>
+    <string name="toggle_password_visibility">Toggle Password Visibility</string>
+    <string name="login">Login</string>
+    <string name="register">Register</string>
+    <string name="password">Password</string>
+    <string name="username">Username</string>
+    <string name="toggle_secret_visibility" />
+    <string name="secret_key">Secret Key</string>
+    <string name="valkyrieicon">ValkyrieIcon</string>
+    <string name="navigation_drawer_open">Navigation Drawer is Open</string>
+    <string name="navigation_drawer_close">Navigation Drawer is Closed</string>
+
+    <!-- 其他字符串资源 -->
+</resources>
