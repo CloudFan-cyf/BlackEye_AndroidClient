@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -31,6 +33,10 @@ class JoystickView @JvmOverloads constructor(
     private var initialCenterX: Float = 0f
     private var initialCenterY: Float = 0f
     private var joystickCallback: JoystickListener? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var updateRunnable: Runnable? = null
+    private var shouldSendData = false
+
 
 
     init {
@@ -39,6 +45,15 @@ class JoystickView @JvmOverloads constructor(
 
         outerCirclePaint.color = Color.LTGRAY
         outerCirclePaint.style = Paint.Style.FILL_AND_STROKE
+        updateRunnable = Runnable {
+            if (shouldSendData) {
+                val percentX = 100 * (handleX - baseCenterX + baseRadius) / (2 * baseRadius)
+                val percentY = 100 * ((baseCenterY + baseRadius) - handleY) / (2 * baseRadius)
+                WebSocketClientManager.sendMessage("H:$percentX V:$percentY")
+                shouldSendData = false // 重置标志
+            }
+            updateRunnable?.let { handler.postDelayed(it, 300) } // 重新调度Runnable，100毫秒后再次执行
+        }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -59,36 +74,32 @@ class JoystickView @JvmOverloads constructor(
         // 绘制可移动的小圆
         canvas.drawCircle(handleX, handleY, handleRadius, innerCirclePaint)
     }
-    init {
-        innerCirclePaint.color = Color.DKGRAY
-        innerCirclePaint.style = Paint.Style.FILL_AND_STROKE
-        outerCirclePaint.color = Color.LTGRAY
-        outerCirclePaint.style = Paint.Style.FILL_AND_STROKE
-
-    }
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val dx = event.x - baseCenterX
         val dy = event.y - baseCenterY
         val distance = sqrt(dx.pow(2) + dy.pow(2))
         val angle = atan2(dy, dx)
         when (event.action) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+            MotionEvent.ACTION_DOWN -> {
+                updateRunnable?.let { handler.postDelayed(it, 100) } // 在第一次按下时开始调度Runnable
+                // 以下处理逻辑与原来相同
+            }
+            MotionEvent.ACTION_MOVE, MotionEvent.ACTION_DOWN -> {
                 if (distance < baseRadius) {
                     handleX = event.x
                     handleY = event.y
                 } else {
-                    // 计算边缘位置，保持小圆在基底圆内
                     handleX = (cos(angle) * baseRadius + baseCenterX).toFloat()
                     handleY = (sin(angle) * baseRadius + baseCenterY).toFloat()
                 }
-                joystickCallback?.onJoystickMoved(
-                    100 * (handleX - initialCenterX) / baseRadius,
-                    100 * (handleY - initialCenterY) / baseRadius
-                )
+                shouldSendData = true
                 invalidate()
             }
             MotionEvent.ACTION_UP -> {
-                // 用户手指离开时的处理逻辑（如果需要可以添加）
+                updateRunnable?.let { handler.removeCallbacks(it) } // 停止发送数据
+                handleX = baseCenterX
+                handleY = baseCenterY
+                invalidate()
             }
         }
         return true

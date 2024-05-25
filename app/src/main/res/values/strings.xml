@@ -10,6 +10,7 @@
     <string name="valkyrieicon">ValkyrieIcon</string>
     <string name="navigation_drawer_open">Navigation Drawer is Open</string>
     <string name="navigation_drawer_close">Navigation Drawer is Closed</string>
+    <string name="log_out">Log out</string>
 
     <!-- 其他字符串资源 -->
 </resources>

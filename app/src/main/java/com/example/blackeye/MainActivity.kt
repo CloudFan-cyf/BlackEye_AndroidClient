@@ -1,9 +1,11 @@
 package com.example.blackeye
 
+import android.content.Intent
+import com.example.blackeye.WebSocketClientManager
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Rect
+
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
@@ -12,90 +14,158 @@ import android.view.SurfaceView
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import org.java_websocket.client.WebSocketClient
-import org.java_websocket.handshake.ServerHandshake
-import java.net.URI
+
 import java.nio.ByteBuffer
 import android.graphics.Color
+import android.view.MotionEvent
 import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.navigation.NavigationView
-import com.example.blackeye.WebSocketClientManager
+import io.github.sceneview.SceneView
+import io.github.sceneview.math.Position
+import io.github.sceneview.math.Rotation
+import io.github.sceneview.math.Scale
+import io.github.sceneview.node.ModelNode
+import io.github.sceneview.collision.HitResult
 
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
-    private lateinit var videoSurface: SurfaceView
-    private lateinit var surfaceHolder: SurfaceHolder
-    private lateinit var batteryIcon: ImageView
-    private lateinit var webSocketClient: WebSocketClient
-    private lateinit var drawerLayout: DrawerLayout
-    private lateinit var toolbar: Toolbar
+        private lateinit var videoSurface: SurfaceView
+        private lateinit var surfaceHolder: SurfaceHolder
+        private lateinit var batteryIcon: ImageView
+        private lateinit var webSocketClient :WebSocketClient
+        private lateinit var drawerLayout: DrawerLayout
+        private lateinit var navigationLayout : NavigationView
+        private var isCameraAsleep: Boolean = false  // 初始状态设置为已唤醒
+        private lateinit var toolbar: Toolbar
+        private lateinit var sceneView: SceneView
+        private lateinit var modelNode: ModelNode
+        private lateinit var token:String
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        toolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
 
-        drawerLayout = findViewById(R.id.drawer_layout)
-        val toggle = ActionBarDrawerToggle(
-            this, drawerLayout, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close
-        )
-        drawerLayout.addDrawerListener(toggle)
-        toggle.syncState()
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+            setContentView(R.layout.activity_main)
 
-        // Set the orientation to landscape
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            toolbar = findViewById(R.id.toolbar)
+            setSupportActionBar(toolbar)
 
-        videoSurface = findViewById(R.id.videoSurface)
-        surfaceHolder = videoSurface.holder
-        batteryIcon = findViewById(R.id.batteryIcon)
+            drawerLayout = findViewById(R.id.drawer_layout)
+            drawerLayout = findViewById(R.id.drawer_layout)
+            navigationLayout = findViewById(R.id.navigation_view)
+            navigationLayout.setNavigationItemSelectedListener { menuItem ->
+                when (menuItem.itemId) {
+                    R.id.nav_camera_sleep -> {
+                        toggleCameraState()
+                        true
+                    }
+                    R.id.nav_account -> {
+                        val intent = Intent(this, AccountManagementActivity::class.java)
+                        startActivity(intent)
+                        true
+                    }
+                    R.id.nav_quit -> {
+                        // Handle application quitting
+                        showExitConfirmation()
+                        true
+                    }
+                    else -> false
+                }
+            }
+            val toggle = ActionBarDrawerToggle(
+                this, drawerLayout, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close
+            )
+            drawerLayout.addDrawerListener(toggle)
+            toggle.syncState()
 
-        val token = intent.getStringExtra("TOKEN")
-        val webSocketClient = WebSocketClientManager.getInstance(token)
-        WebSocketClientManager.videoFrameListener = { bytes ->
-            runOnUiThread {
-                displayVideoFrame(bytes)
+            // Set the orientation to landscape
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+            videoSurface = findViewById(R.id.videoSurface)
+            surfaceHolder = videoSurface.holder
+            batteryIcon = findViewById(R.id.batteryIcon)
+
+            sceneView = findViewById(R.id.sceneView)
+
+
+            val modelFile = "models/3D.glb"
+
+            val modelInstance = sceneView.modelLoader.createModelInstance(modelFile)
+            modelNode = ModelNode(
+                modelInstance = modelInstance,
+                scaleToUnits = 1.0f,
+            )
+            modelNode.scale = Scale(20f)
+            modelNode.isTouchable = false
+            sceneView.addChildNode(modelNode)
+            sceneView.cameraNode.isPositionEditable = true
+            sceneView.cameraNode.isRotationEditable = true
+
+//            sceneView.onFrame = { elapsed ->
+//                Log.d(TAG, "onFrame: $elapsed")
+//            }
+            sceneView.onTouchEvent =  { motionEvent: MotionEvent, hitResult: HitResult? ->
+                Log.d("TEST", "$motionEvent, $hitResult")
+                modelNode.rotation = Rotation(y = -45.0f)
+                sceneView.invalidate()
+
+                true
+            }
+
+
+
+
+
+
+            token = intent.getStringExtra("TOKEN").toString()
+            webSocketClient = WebSocketClientManager.getInstance(token)
+            WebSocketClientManager.videoFrameListener = { bytes ->
+                runOnUiThread {
+                    displayVideoFrame(bytes)
+                }
+            }
+            WebSocketClientManager.imuDataListener = { yaw, pitch, roll ->
+                updateModelView(yaw, pitch, roll)
+            }
+
+            initBatteryIcon()
+
+
+
+        }
+
+    override fun onResume() {
+        super.onResume()
+        sceneView.invalidate()
+
+
+    }
+
+
+        // Make sure to handle back press for Drawer
+        override fun onBackPressed() {
+            if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                drawerLayout.closeDrawer(GravityCompat.START)
+            } else {
+                super.onBackPressed()
             }
         }
 
-        // Initialize joystick and battery icon
-//        initJoystick()
-        initBatteryIcon()
-
-        // Connect to WebSocket server
-        connectWebSocket(token)
-    }
-
-//    private fun initJoystick() {
-//        val joystick: JoystickView = findViewById(R.id.joystick)
-//        joystick.setOnMoveListener(object : JoystickView.JoystickListener {
-//            override fun onMove(angle: Int, strength: Int) {
-//                // Implement your joystick control logic here
-//                // Send control commands to ESP32
-//                sendControlSignalToESP32(angle, strength)
-//            }
-//        })
-//    }
-
-    // Make sure to handle back press for Drawer
-    override fun onBackPressed() {
-        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START)
-        } else {
-            super.onBackPressed()
+        private fun initBatteryIcon() {
+            // Implement your battery icon logic here
+            // Update battery icon based on the battery level received from ESP32
+            updateBatteryIcon(100) // Example: set battery level to 100%
         }
-    }
 
-    private fun initBatteryIcon() {
-        // Implement your battery icon logic here
-        // Update battery icon based on the battery level received from ESP32
-        updateBatteryIcon(100) // Example: set battery level to 100%
-    }
-
-    private fun updateBatteryIcon(batteryLevel: Int) {
+        private fun updateBatteryIcon(batteryLevel: Int) {
         // Update battery icon based on the battery level
         val resId = when {
             batteryLevel > 90 -> R.drawable.battery_full
@@ -108,55 +178,6 @@ class MainActivity : AppCompatActivity() {
         batteryIcon.setImageDrawable(drawable)
     }
 
-    private fun sendControlSignalToESP32(angle: Int, strength: Int) {
-        // Implement the WebSocket logic to send control signals to ESP32
-        val controlMessage = "servo1:$angle,servo2:$strength"
-        webSocketClient.send(controlMessage)
-    }
-
-    private fun connectWebSocket(token: String?) {
-        val uri = URI("ws://49.233.216.82:5901/user")
-        val headers = mapOf("Sec-WebSocket-Protocol" to token)
-        webSocketClient = object : WebSocketClient(uri, headers) {
-            override fun onOpen(handshakedata: ServerHandshake?) {
-                // WebSocket connection opened
-            }
-
-            override fun onMessage(message: String?) {
-                // Handle text messages from the server
-                if (message?.startsWith("battery:") == true) {
-                    val batteryLevel = message.split(":")[1].toInt()
-                    runOnUiThread {
-                        updateBatteryIcon(batteryLevel)
-                    }
-                }
-            }
-
-            override fun onMessage(bytes: ByteBuffer) {
-                // 第一个字节是数据类型
-                val dataType = bytes[0]
-                if (dataType.toInt() == 0x01) { // 数据类型为视频帧
-                    // 跳过第一个字节读取剩余的 JPEG 数据
-                    val jpegBytes = ByteArray(bytes.remaining() - 1)
-                    bytes.position(1) // 忽略第一个字节
-
-                    bytes[jpegBytes, 0, jpegBytes.size]
-
-                    // 显示视频帧
-                    displayVideoFrame(ByteBuffer.wrap(jpegBytes))
-                }
-            }
-
-            override fun onClose(code: Int, reason: String?, remote: Boolean) {
-                // Handle WebSocket close event
-            }
-
-            override fun onError(ex: Exception?) {
-                // Handle WebSocket error event
-            }
-        }
-        webSocketClient.connect()
-    }
 
     private fun displayVideoFrame(frameData: ByteBuffer) {
         // Implement logic to display the video frame on the SurfaceView
@@ -181,6 +202,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 if (canvas != null) {
                     // 计算最大可能的显示尺寸，保持长宽比
+
                     val scaleFactor = Math.min(
                         canvas.width.toFloat() / bitmap.width,
                         canvas.height.toFloat() / bitmap.height
@@ -198,18 +220,74 @@ class MainActivity : AppCompatActivity() {
                     canvas.drawColor(Color.WHITE)  // 用白色清空画布以减少闪烁
 
                     canvas.drawBitmap(scaledBitmap, x, y, null)
+
                 }
             } finally {
+                if(isCameraAsleep){
+                    canvas.drawColor(Color.WHITE)  // 用白色清空画布以减少闪烁
+
+                }
                 surfaceHolder.unlockCanvasAndPost(canvas)
             }
         }
     }
 
+    private fun updateModelView(yaw: Float, pitch: Float, roll: Float) {
+        // 设置模型的旋转，需要将角度转换为弧度
+        // 保证这里的yaw, pitch, roll是以弧度为单位
+        modelNode.rotation = Rotation(yaw,pitch,roll)
+
+    }
+
+    private fun toggleCameraState() {
+        if (isCameraAsleep) {
+            sendCameraCommand("wake")
+            navigationLayout.menu.findItem(R.id.nav_camera_sleep).apply {
+                title = "Put Camera to Sleep"
+                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_sleep)
+            }
+        } else {
+            sendCameraCommand("sleep")
+            navigationLayout.menu.findItem(R.id.nav_camera_sleep).apply {
+                title = "Wake up Camera"
+                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_wake)
+            }
+        }
+        isCameraAsleep = !isCameraAsleep
+    }
+
+    private fun showExitConfirmation() {
+        AlertDialog.Builder(this)
+            .setTitle("Comfirm") // 设置对话框标题
+            .setMessage("Are you really want to quit?") // 设置对话框消息提示
+            .setPositiveButton("Yes") { dialog, which ->
+                // 用户确认退出应用
+                finishAffinity() // 结束所有Activity，适用于API 16以上
+            }
+            .setNegativeButton("No") { dialog, which ->
+                // 用户取消退出，关闭对话框，不做任何事情
+                dialog.dismiss()
+            }
+            .show() // 显示对话框
+    }
+
+
+    private fun sendCameraCommand(command: String) {
+        // Assuming WebSocketClientManager is already set up and connected
+
+        WebSocketClientManager.sendMessage(command)
+    }
+
+
+
+
+
 
     override fun onDestroy() {
         super.onDestroy()
         // Close WebSocket connection when the activity is destroyed
-        webSocketClient.close()
+        WebSocketClientManager.close()
+        sceneView.destroy()
     }
 }
 

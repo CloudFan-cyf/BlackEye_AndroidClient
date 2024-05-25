@@ -1,5 +1,6 @@
 package com.example.blackeye
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.os.Bundle
@@ -119,9 +120,11 @@ class LoginActivity : AppCompatActivity() {
                 if (response.isSuccessful) {
                     val token = response.body()?.token
                     if (token != null) {
+                        saveUserInfo(username, password)
                         // Save the token and proceed to the video activity
                         val intent = Intent(this@LoginActivity, MainActivity::class.java)
                         intent.putExtra("TOKEN", token)
+                        WebSocketClientManager.getInstance(token)
                         startActivity(intent)
                         finish()
                     } else {
@@ -137,4 +140,15 @@ class LoginActivity : AppCompatActivity() {
             }
         })
     }
+    fun saveUserInfo(username: String, password: String) {
+        val sharedPref = this.getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        with (sharedPref.edit()) {
+            putString("username", username)
+            putString("password", password)
+            apply()
+        }
+    }
 }
+
+
+

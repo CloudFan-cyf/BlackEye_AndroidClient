@@ -2,13 +2,13 @@
     <item
         android:id="@+id/nav_camera_sleep"
         android:icon="@drawable/ic_sleep"
-        android:title="摄像头休眠" />
+        android:title="Put Camera to Sleep" />
     <item
         android:id="@+id/nav_account"
         android:icon="@drawable/ic_account"
-        android:title="账户管理" />
+        android:title="Account Management" />
     <item
         android:id="@+id/nav_quit"
         android:icon="@drawable/ic_quit"
-        android:title="退出应用" />
+        android:title="Quit" />
 </menu>

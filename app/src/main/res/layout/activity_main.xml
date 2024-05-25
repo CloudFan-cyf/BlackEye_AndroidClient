@@ -26,22 +26,39 @@
             android:layout_height="match_parent"
             android:hardwareAccelerated="true" />
 
+
+
         <ImageView
             android:id="@+id/batteryIcon"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="top|end"
             android:layout_margin="16dp"
+
             android:src="@drawable/battery_full" /> <!-- 初始图标 -->
 
+
+        <io.github.sceneview.SceneView
+            android:id="@+id/sceneView"
+            android:layout_width="184dp"
+            android:layout_height="142dp"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="30dp"
+            android:layout_marginTop="100dp"
+            />
+
         <com.example.blackeye.JoystickView
-        android:id="@+id/joystickView"
-        android:layout_width="150dp"
-        android:layout_height="150dp"
-        android:layout_gravity="bottom|start"
-        android:layout_margin="20dp" />
+            android:id="@+id/joystickView"
+            android:layout_width="207dp"
+            android:layout_height="201dp"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="20dp"
+
+            />
+
 
     </FrameLayout>
+
 
     <!-- 抽屉内容区 -->
 

@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.jetbrainsKotlinAndroid)
 }
 
+
+
 android {
     namespace = "com.example.blackeye"
     compileSdk = 34
@@ -18,7 +20,11 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        // 添加OpenGL ES版本声明
+        vectorDrawables.useSupportLibrary = true
     }
+
+
 
     buildTypes {
         release {
@@ -47,10 +53,19 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+
 }
 
 dependencies {
-    // Java language implementation
+
+    implementation("com.google.android.filament:filament-android:1.12.8")
+    implementation("io.github.sceneview:sceneview:2.2.0")
+    // 确保添加AR依赖如果你需要AR功能
+    implementation("com.google.ar:core:1.36.0")
+
+
+
     implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")
     implementation("androidx.core:core-splashscreen:1.0.0")
     implementation("com.squareup.okhttp3:okhttp:4.9.0")
