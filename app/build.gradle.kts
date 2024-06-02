@@ -65,6 +65,10 @@ dependencies {
     implementation("com.google.ar:core:1.36.0")
 
 
+    implementation ("org.tensorflow:tensorflow-lite-task-vision:0.3.1")
+
+
+
 
     implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")
     implementation("androidx.core:core-splashscreen:1.0.0")

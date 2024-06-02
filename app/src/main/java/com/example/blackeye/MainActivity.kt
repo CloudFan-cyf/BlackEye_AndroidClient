@@ -1,10 +1,10 @@
 package com.example.blackeye
 
 import android.content.Intent
-import com.example.blackeye.WebSocketClientManager
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 
 import android.graphics.drawable.Drawable
 import android.os.Bundle
@@ -17,6 +17,9 @@ import org.java_websocket.client.WebSocketClient
 
 import java.nio.ByteBuffer
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import android.view.MotionEvent
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
@@ -26,16 +29,27 @@ import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.navigation.NavigationView
 import io.github.sceneview.SceneView
-import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Scale
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.collision.HitResult
+import io.github.sceneview.math.Position
+
+
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.task.vision.detector.Detection
+import org.tensorflow.lite.task.vision.detector.ObjectDetector
+import java.io.FileInputStream
+import java.nio.ByteOrder
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
 
 
 class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MainActivity"
+        const val REQUEST_IMAGE_CAPTURE: Int = 1
+        private const val MAX_FONT_SIZE = 96F
     }
 
         private lateinit var videoSurface: SurfaceView
@@ -51,8 +65,11 @@ class MainActivity : AppCompatActivity() {
         private lateinit var token:String
 
 
+
+
         override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
+
             setContentView(R.layout.activity_main)
 
             toolbar = findViewById(R.id.toolbar)
@@ -103,24 +120,22 @@ class MainActivity : AppCompatActivity() {
                 modelInstance = modelInstance,
                 scaleToUnits = 1.0f,
             )
+
             modelNode.scale = Scale(20f)
             modelNode.isTouchable = false
+            modelNode.position = Position(x = 0f, y = -0.3f, z = -0.5f)
+
             sceneView.addChildNode(modelNode)
             sceneView.cameraNode.isPositionEditable = true
             sceneView.cameraNode.isRotationEditable = true
 
-//            sceneView.onFrame = { elapsed ->
-//                Log.d(TAG, "onFrame: $elapsed")
-//            }
+
             sceneView.onTouchEvent =  { motionEvent: MotionEvent, hitResult: HitResult? ->
-                Log.d("TEST", "$motionEvent, $hitResult")
-                modelNode.rotation = Rotation(y = -45.0f)
+                sceneView.renderer.render(sceneView.view)
                 sceneView.invalidate()
 
-                true
+                false
             }
-
-
 
 
 
@@ -133,22 +148,20 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             WebSocketClientManager.imuDataListener = { yaw, pitch, roll ->
-                updateModelView(yaw, pitch, roll)
+                sceneView.onFrame={elapsed ->
+                    updateModelView(yaw, pitch, roll)
+                    sceneView.invalidate()
+                }
             }
 
             initBatteryIcon()
-
-
-
         }
 
     override fun onResume() {
         super.onResume()
         sceneView.invalidate()
-
-
+        sceneView.renderer.render(sceneView.view)
     }
-
 
         // Make sure to handle back press for Drawer
         override fun onBackPressed() {
@@ -188,44 +201,54 @@ class MainActivity : AppCompatActivity() {
         // 使用BitmapFactory解码字节数组为Bitmap
         val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
 
+
         // 检查Bitmap是否有效
         if (bitmap != null) {
-            drawToSurface(bitmap)
+            val detectedObjects = runObjectDetection(bitmap)
+            drawToSurface(bitmap,detectedObjects)
         } else {
             Log.e("MainActivity", "Failed to decode frame data to Bitmap.")
         }
     }
 
-    private fun drawToSurface(bitmap: Bitmap) {
+    private fun drawToSurface(bitmap: Bitmap, detectedObjects: List<DetectedObject>) {
         val canvas = surfaceHolder.lockCanvas()
         if (canvas != null) {
             try {
-                if (canvas != null) {
-                    // 计算最大可能的显示尺寸，保持长宽比
+                val scaleFactor = Math.min(
+                    canvas.width.toFloat() / bitmap.width,
+                    canvas.height.toFloat() / bitmap.height
+                )
+                val scaledWidth = (bitmap.width * scaleFactor).toInt()
+                val scaledHeight = (bitmap.height * scaleFactor).toInt()
+                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
+                val x = (canvas.width - scaledWidth) / 2.0f
+                val y = (canvas.height - scaledHeight) / 2.0f
+                canvas.drawColor(Color.WHITE)  // 用白色清空画布以减少闪烁
+                canvas.drawBitmap(scaledBitmap, x, y, null)
 
-                    val scaleFactor = Math.min(
-                        canvas.width.toFloat() / bitmap.width,
-                        canvas.height.toFloat() / bitmap.height
-                    )
-                    val scaledWidth = (bitmap.width * scaleFactor).toInt()
-                    val scaledHeight = (bitmap.height * scaleFactor).toInt()
-
-                    // 创建缩放后的图像
-                    val scaledBitmap =
-                        Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
-
-                    // 计算绘图坐标，使图像居中
-                    val x = (canvas.width - scaledWidth) / 2.0f
-                    val y = (canvas.height - scaledHeight) / 2.0f
-                    canvas.drawColor(Color.WHITE)  // 用白色清空画布以减少闪烁
-
-                    canvas.drawBitmap(scaledBitmap, x, y, null)
+                // 绘制检测结果
+                val paint = Paint()
+                paint.color = Color.RED
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 4.0f
+                paint.textAlign = Paint.Align.LEFT
+                for (obj in detectedObjects) {
+                    val left = x + (obj.boundingBox.left*scaleFactor).toInt()
+                    val top = y + (obj.boundingBox.top*scaleFactor).toInt()
+                    val right = x + (obj.boundingBox.right*scaleFactor).toInt()
+                    val bottom = y + (obj.boundingBox.bottom*scaleFactor).toInt()
+                    canvas.drawRect(left, top, right, bottom, paint)
+                    // 绘制标签
+                    paint.style = Paint.Style.FILL_AND_STROKE
+                    paint.textSize = 20.0f
+                    canvas.drawText(obj.label, left, top - 10, paint)
+                    paint.style = Paint.Style.STROKE
 
                 }
             } finally {
-                if(isCameraAsleep){
+                if (isCameraAsleep) {
                     canvas.drawColor(Color.WHITE)  // 用白色清空画布以减少闪烁
-
                 }
                 surfaceHolder.unlockCanvasAndPost(canvas)
             }
@@ -282,6 +305,141 @@ class MainActivity : AppCompatActivity() {
 
 
 
+
+
+    private fun runObjectDetection(bitmap: Bitmap): List<DetectedObject> {
+        // Step 1: create TFLite's TensorImage object
+        val image = TensorImage.fromBitmap(bitmap)
+        // Step 2: Initialize the detector object
+        val options = ObjectDetector.ObjectDetectorOptions.builder()
+            .setMaxResults(5)
+            .setScoreThreshold(0.5f)
+            .build()
+        val detector = ObjectDetector.createFromFileAndOptions(
+            this, // the application context
+            "efficientdet.tflite", // must be same as the filename in assets folder
+            options
+        )
+        // Step 3: feed given image to the model and print the detection result
+        val results = detector.detect(image)
+        // Step 4: Parse the detection result and show it
+        debugPrint(results)
+        val resultToDisplay = results.map {
+            // Get the top-1 category and craft the display text
+            val category = it.categories.first()
+            val text = "${category.label}, ${category.score.times(100).toInt()}%"
+
+            // Create a data object to display the detection result
+            DetectedObject(category.label, it.boundingBox)
+        }
+
+        return resultToDisplay
+    }
+
+    private fun debugPrint(results : List<Detection>) {
+        for ((i, obj) in results.withIndex()) {
+            val box = obj.boundingBox
+
+            Log.d(TAG, "Detected object: ${i} ")
+            Log.d(TAG, "  boundingBox: (${box.left}, ${box.top}) - (${box.right},${box.bottom})")
+
+            for ((j, category) in obj.categories.withIndex()) {
+                Log.d(TAG, "    Label $j: ${category.label}")
+                val confidence: Int = category.score.times(100).toInt()
+                Log.d(TAG, "    Confidence: ${confidence}%")
+            }
+        }
+    }
+
+    private fun drawDetectionResult(
+        bitmap: Bitmap,
+        detectionResults: List<DetectedObject>
+    ): Bitmap {
+        val outputBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(outputBitmap)
+        val pen = Paint()
+        pen.textAlign = Paint.Align.LEFT
+
+        detectionResults.forEach {
+            // draw bounding box
+            pen.color = Color.RED
+            pen.strokeWidth = 8F
+            pen.style = Paint.Style.STROKE
+            val box = it.boundingBox
+            canvas.drawRect(box, pen)
+
+
+            val tagSize = Rect(0, 0, 0, 0)
+
+            // calculate the right font size
+            pen.style = Paint.Style.FILL_AND_STROKE
+            pen.color = Color.YELLOW
+            pen.strokeWidth = 2F
+
+            pen.textSize = MAX_FONT_SIZE
+            pen.getTextBounds(it.label, 0, it.label.length, tagSize)
+            val fontSize: Float = pen.textSize * box.width() / tagSize.width()
+
+            // adjust the font size so texts are inside the bounding box
+            if (fontSize < pen.textSize) pen.textSize = fontSize
+
+            var margin = (box.width() - tagSize.width()) / 2.0F
+            if (margin < 0F) margin = 0F
+            canvas.drawText(
+                it.label, box.left + margin,
+                box.top + tagSize.height().times(1F), pen
+            )
+        }
+        return outputBitmap
+    }
+
+
+    private fun updateModelView(yaw: Float, pitch: Float, roll: Float) {
+        // 设置模型的旋转，需要将角度转换为弧度
+        // 保证这里的yaw, pitch, roll是以弧度为单位
+        modelNode.rotation = Rotation(yaw,pitch,roll)
+
+
+    }
+
+    private fun toggleCameraState() {
+        if (isCameraAsleep) {
+            sendCameraCommand("wake")
+            navigationLayout.menu.findItem(R.id.nav_camera_sleep).apply {
+                title = "Put Camera to Sleep"
+                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_sleep)
+            }
+        } else {
+            sendCameraCommand("sleep")
+            navigationLayout.menu.findItem(R.id.nav_camera_sleep).apply {
+                title = "Wake up Camera"
+                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_wake)
+            }
+        }
+        isCameraAsleep = !isCameraAsleep
+    }
+
+    private fun showExitConfirmation() {
+        AlertDialog.Builder(this)
+            .setTitle("Comfirm") // 设置对话框标题
+            .setMessage("Are you really want to quit?") // 设置对话框消息提示
+            .setPositiveButton("Yes") { dialog, which ->
+                // 用户确认退出应用
+                finishAffinity() // 结束所有Activity，适用于API 16以上
+            }
+            .setNegativeButton("No") { dialog, which ->
+                // 用户取消退出，关闭对话框，不做任何事情
+                dialog.dismiss()
+            }
+            .show() // 显示对话框
+    }
+
+
+    private fun sendCameraCommand(command: String) {
+        // Assuming WebSocketClientManager is already set up and connected
+
+        WebSocketClientManager.sendMessage(command)
+    }
 
     override fun onDestroy() {
         super.onDestroy()
