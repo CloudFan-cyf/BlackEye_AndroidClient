@@ -35,7 +35,6 @@ import io.github.sceneview.node.ModelNode
 import io.github.sceneview.collision.HitResult
 import io.github.sceneview.math.Position
 
-
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
@@ -63,9 +62,6 @@ class MainActivity : AppCompatActivity() {
         private lateinit var sceneView: SceneView
         private lateinit var modelNode: ModelNode
         private lateinit var token:String
-
-
-
 
         override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
@@ -136,9 +132,6 @@ class MainActivity : AppCompatActivity() {
 
                 false
             }
-
-
-
 
             token = intent.getStringExtra("TOKEN").toString()
             webSocketClient = WebSocketClientManager.getInstance(token)
@@ -255,58 +248,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateModelView(yaw: Float, pitch: Float, roll: Float) {
-        // 设置模型的旋转，需要将角度转换为弧度
-        // 保证这里的yaw, pitch, roll是以弧度为单位
-        modelNode.rotation = Rotation(yaw,pitch,roll)
-
-    }
-
-    private fun toggleCameraState() {
-        if (isCameraAsleep) {
-            sendCameraCommand("wake")
-            navigationLayout.menu.findItem(R.id.nav_camera_sleep).apply {
-                title = "Put Camera to Sleep"
-                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_sleep)
-            }
-        } else {
-            sendCameraCommand("sleep")
-            navigationLayout.menu.findItem(R.id.nav_camera_sleep).apply {
-                title = "Wake up Camera"
-                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_wake)
-            }
-        }
-        isCameraAsleep = !isCameraAsleep
-    }
-
-    private fun showExitConfirmation() {
-        AlertDialog.Builder(this)
-            .setTitle("Comfirm") // 设置对话框标题
-            .setMessage("Are you really want to quit?") // 设置对话框消息提示
-            .setPositiveButton("Yes") { dialog, which ->
-                // 用户确认退出应用
-                finishAffinity() // 结束所有Activity，适用于API 16以上
-            }
-            .setNegativeButton("No") { dialog, which ->
-                // 用户取消退出，关闭对话框，不做任何事情
-                dialog.dismiss()
-            }
-            .show() // 显示对话框
-    }
-
-
-    private fun sendCameraCommand(command: String) {
-        // Assuming WebSocketClientManager is already set up and connected
-
-        WebSocketClientManager.sendMessage(command)
-    }
-
-
-
-
-
-
-
     private fun runObjectDetection(bitmap: Bitmap): List<DetectedObject> {
         // Step 1: create TFLite's TensorImage object
         val image = TensorImage.fromBitmap(bitmap)
@@ -323,7 +264,6 @@ class MainActivity : AppCompatActivity() {
         // Step 3: feed given image to the model and print the detection result
         val results = detector.detect(image)
         // Step 4: Parse the detection result and show it
-        debugPrint(results)
         val resultToDisplay = results.map {
             // Get the top-1 category and craft the display text
             val category = it.categories.first()
@@ -351,55 +291,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun drawDetectionResult(
-        bitmap: Bitmap,
-        detectionResults: List<DetectedObject>
-    ): Bitmap {
-        val outputBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(outputBitmap)
-        val pen = Paint()
-        pen.textAlign = Paint.Align.LEFT
-
-        detectionResults.forEach {
-            // draw bounding box
-            pen.color = Color.RED
-            pen.strokeWidth = 8F
-            pen.style = Paint.Style.STROKE
-            val box = it.boundingBox
-            canvas.drawRect(box, pen)
-
-
-            val tagSize = Rect(0, 0, 0, 0)
-
-            // calculate the right font size
-            pen.style = Paint.Style.FILL_AND_STROKE
-            pen.color = Color.YELLOW
-            pen.strokeWidth = 2F
-
-            pen.textSize = MAX_FONT_SIZE
-            pen.getTextBounds(it.label, 0, it.label.length, tagSize)
-            val fontSize: Float = pen.textSize * box.width() / tagSize.width()
-
-            // adjust the font size so texts are inside the bounding box
-            if (fontSize < pen.textSize) pen.textSize = fontSize
-
-            var margin = (box.width() - tagSize.width()) / 2.0F
-            if (margin < 0F) margin = 0F
-            canvas.drawText(
-                it.label, box.left + margin,
-                box.top + tagSize.height().times(1F), pen
-            )
-        }
-        return outputBitmap
-    }
-
-
     private fun updateModelView(yaw: Float, pitch: Float, roll: Float) {
         // 设置模型的旋转，需要将角度转换为弧度
         // 保证这里的yaw, pitch, roll是以弧度为单位
         modelNode.rotation = Rotation(yaw,pitch,roll)
-
-
     }
 
     private fun toggleCameraState() {
