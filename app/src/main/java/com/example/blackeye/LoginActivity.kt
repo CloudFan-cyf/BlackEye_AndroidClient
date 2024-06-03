@@ -140,7 +140,7 @@ class LoginActivity : AppCompatActivity() {
             }
         })
     }
-    fun saveUserInfo(username: String, password: String) {
+    private fun saveUserInfo(username: String, password: String) {
         val sharedPref = this.getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
         with (sharedPref.edit()) {
             putString("username", username)

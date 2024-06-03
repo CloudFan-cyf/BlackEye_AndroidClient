@@ -276,25 +276,14 @@ class MainActivity : AppCompatActivity() {
         return resultToDisplay
     }
 
-    private fun debugPrint(results : List<Detection>) {
-        for ((i, obj) in results.withIndex()) {
-            val box = obj.boundingBox
 
-            Log.d(TAG, "Detected object: ${i} ")
-            Log.d(TAG, "  boundingBox: (${box.left}, ${box.top}) - (${box.right},${box.bottom})")
-
-            for ((j, category) in obj.categories.withIndex()) {
-                Log.d(TAG, "    Label $j: ${category.label}")
-                val confidence: Int = category.score.times(100).toInt()
-                Log.d(TAG, "    Confidence: ${confidence}%")
-            }
-        }
-    }
 
     private fun updateModelView(yaw: Float, pitch: Float, roll: Float) {
         // 设置模型的旋转，需要将角度转换为弧度
         // 保证这里的yaw, pitch, roll是以弧度为单位
         modelNode.rotation = Rotation(yaw,pitch,roll)
+
+
     }
 
     private fun toggleCameraState() {

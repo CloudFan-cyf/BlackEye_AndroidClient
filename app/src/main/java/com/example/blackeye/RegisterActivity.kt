@@ -1,5 +1,6 @@
 package com.example.blackeye
 
+import android.content.Context
 import android.os.Bundle
 import android.content.Intent
 import android.text.TextUtils
@@ -120,6 +121,7 @@ class RegisterActivity : AppCompatActivity() {
                     val token = response.body()?.token
                     if (token != null) {
                         // Save the token and proceed to the video activity
+                        saveUserInfo(username, password)
                         val intent = Intent(this@RegisterActivity, MainActivity::class.java)
                         intent.putExtra("TOKEN", token)
                         startActivity(intent)
@@ -137,5 +139,14 @@ class RegisterActivity : AppCompatActivity() {
             }
         })
 
+    }
+
+    private fun saveUserInfo(username: String, password: String) {
+        val sharedPref = this.getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        with (sharedPref.edit()) {
+            putString("username", username)
+            putString("password", password)
+            apply()
+        }
     }
 }
