@@ -325,6 +325,17 @@ class MainActivity : AppCompatActivity() {
         WebSocketClientManager.sendMessage(command)
     }
 
+    override fun onStop() {
+        super.onStop()
+        WebSocketClientManager.close()
+
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        WebSocketClientManager.getInstance(token)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         // Close WebSocket connection when the activity is destroyed
