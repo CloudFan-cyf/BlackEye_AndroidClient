@@ -20,6 +20,8 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
@@ -43,6 +45,9 @@ import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
+import android.os.SystemClock
+import android.widget.TextView
+
 
 class MainActivity : AppCompatActivity() {
     companion object {
@@ -62,6 +67,9 @@ class MainActivity : AppCompatActivity() {
         private lateinit var sceneView: SceneView
         private lateinit var modelNode: ModelNode
         private lateinit var token:String
+        private lateinit var fpsTextView: TextView
+        private var frameCount = 0
+        private var startTime = 0L
 
         override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
@@ -121,6 +129,7 @@ class MainActivity : AppCompatActivity() {
             modelNode.isTouchable = false
             modelNode.position = Position(x = 0f, y = -0.3f, z = -0.5f)
 
+
             sceneView.addChildNode(modelNode)
             sceneView.cameraNode.isPositionEditable = true
             sceneView.cameraNode.isRotationEditable = true
@@ -148,6 +157,21 @@ class MainActivity : AppCompatActivity() {
             }
 
             initBatteryIcon()
+
+            fpsTextView = findViewById(R.id.fpsTextView)
+
+            // 初始化计时器
+            startTime = SystemClock.elapsedRealtime()
+            frameCount = 0
+
+            // 用Handler定时更新FPS
+            val handler = Handler(Looper.getMainLooper())
+            handler.postDelayed(object : Runnable {
+                override fun run() {
+                    updateFPS()
+                    handler.postDelayed(this, 1000) // 每秒更新一次
+                }
+            }, 1000)
         }
 
     override fun onResume() {
@@ -234,11 +258,13 @@ class MainActivity : AppCompatActivity() {
                     canvas.drawRect(left, top, right, bottom, paint)
                     // 绘制标签
                     paint.style = Paint.Style.FILL_AND_STROKE
-                    paint.textSize = 20.0f
+                    paint.textSize = 40.0f
+                    paint.setShadowLayer(5F, 3F, 3F, Color.WHITE);  // 设置阴影，参数依次为：半径，x偏移，y偏移，阴影颜色
                     canvas.drawText(obj.label, left, top - 10, paint)
                     paint.style = Paint.Style.STROKE
 
                 }
+                onFrameRendered()
             } finally {
                 if (isCameraAsleep) {
                     canvas.drawColor(Color.WHITE)  // 用白色清空画布以减少闪烁
@@ -323,6 +349,19 @@ class MainActivity : AppCompatActivity() {
         // Assuming WebSocketClientManager is already set up and connected
 
         WebSocketClientManager.sendMessage(command)
+    }
+
+    private fun updateFPS() {
+        val endTime = SystemClock.elapsedRealtime()
+        val fps = frameCount * 1000.0 / (endTime - startTime)
+        fpsTextView.text = String.format("FPS: %.2f", fps)
+        startTime = endTime
+        frameCount = 0
+    }
+
+    // 调用此方法来更新帧数计数
+    private fun onFrameRendered() {
+        frameCount++
     }
 
     override fun onStop() {
