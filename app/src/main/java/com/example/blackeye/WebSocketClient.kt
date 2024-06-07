@@ -10,7 +10,7 @@ import java.nio.ByteBuffer
 
 object WebSocketClientManager {
     private var webSocketClient: WebSocketClient? = null
-    private val serverUri = URI("ws://49.233.216.82:5901/user")
+    private val serverUri = URI("ws://your_ip_address/user")
     var videoFrameListener: ((ByteBuffer) -> Unit)? = null
     var imuDataListener: ((Float, Float, Float) -> Unit)? = null  // 使用三个Float参数的Lambda
     var connectState : Boolean = false
